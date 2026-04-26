@@ -1,0 +1,16 @@
+user,month,period_start,period_duration,cycle_length,pain_level,flow,missed_period,irregular
+Asha,Jan,2026-01-01,6,42,4,Heavy,No,Yes
+Asha,Feb,None,0,0,0,None,Yes,Yes
+Asha,Mar,2026-02-12,4,45,3,Heavy,No,Yes
+Neha,Jan,2026-01-01,3,26,2,Medium,No,No
+Neha,Feb,2026-01-27,4,27,2,Medium,No,No
+Neha,Mar,2026-02-23,3,29,3,Light,No,No
+Kavya,Jan,2026-01-01,3,50,3,Heavy,No,Yes
+Kavya,Feb,2026-02-20,5,38,3,Heavy,No,Yes
+Kavya,Mar,None,0,0,0,None,Yes,Yes
+Pooja,Jan,2026-01-01,5,26,2,Medium,No,No
+Pooja,Feb,2026-01-27,3,30,3,Medium,No,No
+Pooja,Mar,2026-02-26,5,28,1,Light,No,No
+Riya,Jan,None,0,0,0,None,Yes,Yes
+Riya,Feb,2026-01-01,4,46,4,Medium,No,Yes
+Riya,Mar,None,0,0,0,None,Yes,Yes

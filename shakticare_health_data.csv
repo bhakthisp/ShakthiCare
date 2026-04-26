@@ -1,0 +1,3 @@
+user_id,timestamp,daily_mood,daily_sleep_hours,daily_stress_level,weekly_weight,weekly_exercise_minutes,weekly_symptom_acne,weekly_symptom_hairfall,weekly_symptom_fatigue,monthly_cycle_start_date,monthly_cycle_end_date,monthly_pain_level,monthly_regularity
+test,123,4.0,7.0,2.0,55.0,30.0,1,0,1,2026-04-01,2026-04-05,2.0,1
+thanu@gmail.com,1777180791346,4.0,7.0,2.0,55.0,0.0,0,0,0,,,1.0,1,0
