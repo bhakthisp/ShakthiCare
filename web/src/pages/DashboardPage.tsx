@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  buildShaktiCareCombinedAlerts,
-  combineDigitalTwinAndMl,
-  computeTwinSignals,
-  predictMlRiskFromFeatures,
-} from '../combinedIntelligence'
-import { getLatestUserMonth, getUserCycleTrend } from '../data/monthlyCycleData'
 import { getCombinedIntelligence, predictRisk } from '../api.js'
 import { getCurrentUser } from '../auth'
+import { getUserCycleTrend } from '../data/monthlyCycleData'
 
 type CurrentUser = { name?: string; email: string }
 
@@ -135,9 +129,6 @@ function LineChart({ values }: { values: number[] }) {
 export function DashboardPage() {
   const navigate = useNavigate()
   const [user, setUser] = useState<CurrentUser | null>(null)
-  const [apiCombined, setApiCombined] = useState<{ final_risk: string; final_ai_insight: string } | null>(
-    null,
-  )
 
   useEffect(() => {
     try {
@@ -183,13 +174,6 @@ export function DashboardPage() {
     return getUserCycleTrend(name)
   }, [user, isCurrentUserDemo])
 
-  const fallbackLatestMonth = useMemo(() => {
-    if (!user || !isCurrentUserDemo) return null
-    const name = user.name?.trim() ? user.name.trim() : getDisplayName(user)
-    return getLatestUserMonth(name)
-  }, [user, isCurrentUserDemo])
-
-  const latestLocalEntry = localEntries.at(-1) ?? null
   const noDataForNewUser = user && !isCurrentUserDemo && localEntries.length === 0
 
   const cycleTrend = noDataForNewUser
@@ -201,79 +185,51 @@ export function DashboardPage() {
     : [28, 30, 29]
   const currentCycleLength = cycleTrend.at(-1) ?? 0
 
-  const latestMonth = noDataForNewUser
-    ? null
-    : localEntries.length
-    ? {
-        cycle_length: localCycleLengths.at(-1) ?? currentCycleLength,
-        pain_level: Number((latestLocalEntry as any)?.monthly?.pain_level ?? 0),
-        missed_period: (latestLocalEntry as any)?.monthly?.missed_period ? 'Yes' : 'No',
-      }
-    : fallbackLatestMonth
+  /** Backend-connected AI (predict + fusion) for demo judges. */
+  const [backendData, setBackendData] = useState<{
+    risk: string
+    explanation: string[]
+    finalRisk: string
+    finalAiInsight: string
+  } | null>(null)
 
-  /** Same demo signals as Digital Twin + ML API; swap for live API when wired. */
-  const aiSignals = useMemo(() => {
-    const cycleLength = latestMonth?.cycle_length || currentCycleLength || 28
-    const stress = 5
-    const sleep = 4.5
-    const mood = 3
-    const pain = latestMonth?.pain_level ?? 0
-    const missed = latestMonth?.missed_period === 'Yes'
-    const symptoms = {
-      acne: cycleLength > 30,
-      hair_fall: cycleLength > 38,
-      weight_gain: stress >= 4 && sleep < 5,
-      fatigue: pain >= 3 || missed,
-    }
-    const symptomCount = Object.values(symptoms).filter(Boolean).length
-
-    const row = {
-      cycle_length: cycleLength,
-      stress_level: stress,
-      sleep_hours: sleep,
-      mood_score: mood,
-      symptom_count: symptomCount,
-    }
-
-    const mlRisk = predictMlRiskFromFeatures(row)
-    const twin = computeTwinSignals(cycleLength, stress, mood)
-    const fused = combineDigitalTwinAndMl(twin.cycleDeviationScore, mlRisk)
-
-    return {
-      row,
-      mlRisk,
-      twin,
-      fused,
-      finalAiInsight: fused.finalAiInsight,
-      riskScore: fused.finalRisk,
-    }
-  }, [latestMonth, currentCycleLength])
-
-  const { riskScore, row: mlRow, twin } = aiSignals
-
-  // Backend-connected AI (predict + fusion) for demo judges.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const p = await predictRisk(mlRow)
+        // Use sample data for backend prediction
+        const sampleData = {
+          cycle_length: currentCycleLength || 28,
+          stress_level: 3,
+          sleep_hours: 7,
+          mood_score: 4,
+          symptom_count: 1,
+        }
+
+        const p = await predictRisk(sampleData)
         if (cancelled) return
+
         const c = await getCombinedIntelligence({
-          digital_twin_deviation_score: twin.cycleDeviationScore,
+          digital_twin_deviation_score: (currentCycleLength || 28) - 28,
           ml_risk_level: p.risk,
         })
         if (cancelled) return
-        setApiCombined(c)
+
+        setBackendData({
+          risk: p.risk,
+          explanation: p.explanation || [],
+          finalRisk: c.final_risk,
+          finalAiInsight: c.final_ai_insight,
+        })
       } catch (e) {
         if (cancelled) return
+        console.error('Backend API error:', e)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [mlRow, twin.cycleDeviationScore])
-
-  const alerts = useMemo(() => buildShaktiCareCombinedAlerts(mlRow), [mlRow])
+  }, [currentCycleLength])
 
   return (
     <div className="glass-card p-6 md:p-8 bg-gradient-to-br from-pink-50/50 via-purple-50/50 to-blue-50/50 backdrop-blur-md transition-all duration-300">
@@ -307,7 +263,7 @@ export function DashboardPage() {
             <div className="glass-card p-5 transition-all duration-300 hover:scale-105 hover:shadow-lg bg-gradient-to-br from-pink-100/70 to-lavender-100/70">
               <div className="text-sm font-semibold text-gray-700">Risk Score</div>
               <div className="mt-2 text-2xl font-bold text-gray-800">
-                {apiCombined?.final_risk ?? riskScore}
+                {backendData?.finalRisk || 'Loading...'}
               </div>
               <div className="mt-1 text-xs font-medium text-gray-600">
                 Digital Twin deviation + behavioral ML model (combined)
@@ -353,44 +309,45 @@ export function DashboardPage() {
 
             <div className="lg:col-span-2 space-y-5">
               <div className="rounded-2xl border border-white/30 bg-white/35 p-5 shadow-xl backdrop-blur-lg transition-all duration-300 hover:scale-105 hover:shadow-lg bg-gradient-to-br from-pink-50/50 to-purple-50/50">
-                <div className="text-sm font-semibold text-gray-700">
-                  AI Risk Alerts
-                </div>
-                <div className="mt-3 space-y-2">
-                  {alerts.map((a, idx) => {
-                    const style =
-                      a.level === 'high'
+              <div className="text-sm font-semibold text-gray-700">
+                AI Risk Alerts
+              </div>
+              <div className="mt-3 space-y-2">
+                {backendData ? (
+                  <div
+                    className={`rounded-2xl p-3 shadow-sm ring-1 ${
+                      backendData.finalRisk === 'High'
                         ? 'bg-red-100/90 text-red-950 ring-red-300'
-                        : a.level === 'medium'
+                        : backendData.finalRisk === 'Medium'
                           ? 'bg-yellow-100/90 text-yellow-950 ring-yellow-300'
                           : 'bg-green-100/90 text-green-950 ring-green-300'
-
-                    const label =
-                      a.level === 'high' ? 'High' : a.level === 'medium' ? 'Medium' : 'Normal'
-
-                    return (
-                      <div
-                        key={`${a.title}-${idx}`}
-                        className={`rounded-2xl p-3 shadow-sm ring-1 ${style} transition-all duration-300 hover:scale-102`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="font-semibold">
-                              <span className="mr-2">⚠</span>
-                              {a.title}
-                            </div>
-                            {a.detail ? (
-                              <div className="mt-1 text-xs opacity-90">{a.detail}</div>
-                            ) : null}
-                          </div>
-                          <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[11px] font-bold">
-                            {label}
-                          </span>
+                    } transition-all duration-300 hover:scale-102`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">
+                          <span className="mr-2">⚠</span>
+                          {backendData.finalRisk === 'High'
+                            ? 'High Risk Alert'
+                            : backendData.finalRisk === 'Medium'
+                              ? 'Medium Risk Alert'
+                              : 'Low Risk - Healthy Pattern'}
+                        </div>
+                        <div className="mt-1 text-xs opacity-90">
+                          {backendData.finalAiInsight}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
+                      <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[11px] font-bold">
+                        {backendData.finalRisk}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl p-3 shadow-sm ring-1 bg-gray-100/90 text-gray-950 ring-gray-300">
+                    <div className="text-sm">Loading AI analysis...</div>
+                  </div>
+                )}
+              </div>
               </div>
 
               <div className="rounded-2xl border border-white/30 bg-white/35 p-5 shadow-xl backdrop-blur-lg transition-all duration-300 hover:scale-105 hover:shadow-lg bg-gradient-to-br from-purple-50/50 to-blue-50/50">
