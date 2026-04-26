@@ -6,3 +6,4 @@ setuptools>=65.5.0
 wheel
 pandas==2.2.2
 pip==24.0
+gunicorn==21.2.0
